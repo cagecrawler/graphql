@@ -16,17 +16,27 @@ import (
 type Client struct {
 	url        string // GraphQL server URL.
 	httpClient *http.Client
+	headers    map[string]string
 }
 
 // NewClient creates a GraphQL client targeting the specified GraphQL server URL.
 // If httpClient is nil, then http.DefaultClient is used.
-func NewClient(url string, httpClient *http.Client) *Client {
+func NewClient(url string, httpClient *http.Client, headers map[string]string) *Client {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
+
+	if headers == nil {
+		headers = map[string]string{}
+	}
+
+	// Force Content-Type as it's a requirement of a graphql request
+	headers["Content-Type"] = "application/json"
+
 	return &Client{
 		url:        url,
 		httpClient: httpClient,
+		headers:    headers,
 	}
 }
 
@@ -65,7 +75,13 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 	if err != nil {
 		return err
 	}
-	resp, err := ctxhttp.Post(ctx, c.httpClient, c.url, "application/json", &buf)
+
+	req, _ := http.NewRequest(http.MethodPost, c.url, &buf)
+	for k, v := range c.headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := ctxhttp.Do(ctx, c.httpClient, req)
+
 	if err != nil {
 		return err
 	}
